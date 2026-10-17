@@ -1,0 +1,27 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="nebula" cx="50%" cy="0%" r="60%">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.25"/>
+      <stop offset="50%" stop-color="#222765" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#060714" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <rect width="1440" height="900" fill="url(#nebula)" />
+
+  <!-- Constellation and Starlight Points -->
+  <g opacity="0.6">
+    <circle cx="120" cy="180" r="1.5" fill="#f5c563" />
+    <circle cx="280" cy="110" r="2" fill="#ffffff" />
+    <circle cx="410" cy="240" r="1" fill="#e69c24" />
+    <circle cx="620" cy="90" r="2.5" fill="#fef3c7" opacity="0.9" />
+    <circle cx="850" cy="170" r="1.5" fill="#ffffff" />
+    <circle cx="1020" cy="80" r="2" fill="#f5c563" />
+    <circle cx="1260" cy="210" r="1.5" fill="#ffffff" />
+    <circle cx="1380" cy="140" r="2" fill="#e69c24" />
+
+    <!-- Constellation lines -->
+    <path d="M120 180 L280 110 L410 240" stroke="#f5c563" stroke-width="0.5" stroke-dasharray="3 3" opacity="0.4"/>
+    <path d="M850 170 L1020 80 L1260 210" stroke="#a855f7" stroke-width="0.5" stroke-dasharray="2 4" opacity="0.3"/>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cosmic-950: #060714;
+  --color-cosmic-900: #0c0e27;
+  --color-cosmic-800: #161942;
+  --color-cosmic-700: #222765;
+
+  --color-celestial-gold: #f5c563;
+  --color-celestial-amber: #e69c24;
+  --color-celestial-light: #fef3c7;
+
+  --color-mystic-purple: #7c3aed;
+  --color-mystic-violet: #a855f7;
+  --color-mystic-cyan: #38bdf8;
+
+  --font-serif: var(--font-cinzel), Georgia, serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  --background: #060714;
+  --foreground: #f8fafc;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.bg-celestial-gradient {
+  background: radial-gradient(circle at 50% -10%, rgba(124, 58, 237, 0.22), rgba(6, 7, 20, 0.98) 80%);
+}
+
+.bg-gold-glow {
+  background: radial-gradient(circle, rgba(245, 197, 99, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+}
