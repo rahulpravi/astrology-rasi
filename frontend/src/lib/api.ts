@@ -70,6 +70,65 @@ export interface ChartApiResponse {
   detail?: string;
 }
 
+export interface PersonBirthDetails {
+  name?: string;
+  dob: string;
+  tob: string;
+  pob?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+}
+
+export interface MatchRequestPayload {
+  boy: PersonBirthDetails;
+  girl: PersonBirthDetails;
+}
+
+export interface PoruthamItem {
+  id: string;
+  name: string;
+  sanskrit_name: string;
+  status: "Match" | "No Match" | string;
+  score: number;
+  max_score: number;
+  meaning: string;
+  description: string;
+  details: string;
+}
+
+export interface PersonChartSummary {
+  name: string;
+  rasi: string;
+  rasi_english: string;
+  nakshatra: string;
+  pada: number;
+  degree: number;
+  lord: string;
+  gana: string;
+  yoni_animal: string;
+  yoni_gender: string;
+  rajju: string;
+}
+
+export interface MatchData {
+  boy: PersonChartSummary;
+  girl: PersonChartSummary;
+  poruthams: PoruthamItem[];
+  score: number;
+  total_poruthams: number;
+  percentage: number;
+  verdict: "Uthamam" | "Madhyamam" | "Adhamam" | string;
+  verdict_label: string;
+  summary: string;
+}
+
+export interface MatchApiResponse {
+  success: boolean;
+  data: MatchData;
+  detail?: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**
@@ -127,3 +186,71 @@ export async function calculateRasiChart(payload: ChartRequestPayload): Promise<
     throw error;
   }
 }
+
+/**
+ * Calculates South Indian Dasa Porutham (10 Kutas) between Boy and Girl.
+ * 
+ * @param payload - Both partners' birth particulars
+ * @returns Promise resolving to MatchData
+ */
+export async function calculateMatchmaking(payload: MatchRequestPayload): Promise<MatchData> {
+  const endpoint = `${API_BASE_URL}/api/v1/match/calculate`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        boy: {
+          name: payload.boy.name || "Boy",
+          dob: payload.boy.dob,
+          tob: payload.boy.tob,
+          pob: payload.boy.pob || "Chennai",
+          latitude: payload.boy.latitude,
+          longitude: payload.boy.longitude,
+          timezone: payload.boy.timezone,
+        },
+        girl: {
+          name: payload.girl.name || "Girl",
+          dob: payload.girl.dob,
+          tob: payload.girl.tob,
+          pob: payload.girl.pob || "Chennai",
+          latitude: payload.girl.latitude,
+          longitude: payload.girl.longitude,
+          timezone: payload.girl.timezone,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status})`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = typeof errorData.detail === "string" ? errorData.detail : JSON.stringify(errorData.detail);
+        }
+      } catch {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result: MatchApiResponse = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.detail || "Invalid response received from matchmaking engine.");
+    }
+
+    return result.data;
+  } catch (error: any) {
+    if (error.name === "TypeError" && error.message.includes("fetch")) {
+      throw new Error(
+        "Could not connect to the Astrology Engine backend. Ensure FastAPI is running on http://localhost:8000."
+      );
+    }
+    throw error;
+  }
+}
+

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1.routes import chart
+from app.api.v1.routes import chart, match
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -23,6 +23,7 @@ app.add_middleware(
 
 # API Routers
 app.include_router(chart.router, prefix="/api/v1/chart", tags=["Rasi Chart"])
+app.include_router(match.router, prefix="/api/v1/match", tags=["Matchmaking"])
 
 @app.get("/", tags=["Health Check"])
 def health_check():
