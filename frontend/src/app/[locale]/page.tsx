@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import {
   Sparkles,
@@ -22,9 +22,14 @@ import TimeInput12Hour from "@/components/TimeInput12Hour";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 export default function HomePage() {
+  const [mounted, setMounted] = useState(false);
   const tHero = useTranslations("hero");
   const tForm = useTranslations("form_preview");
   const tUI = useTranslations("astrology.ui");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Read and mutate global persisted state from Zustand
   const formData = useAstrologyStore((state) => state.formData);
@@ -140,7 +145,7 @@ export default function HomePage() {
 
       {/* Main Dynamic View Area */}
       <div id="generate" className="mt-14 lg:mt-20 scroll-mt-20">
-        {chartData ? (
+        {mounted && chartData ? (
           // Display Chart and Planetary Data (Persisted across language changes)
           <div id="chart-results">
             <ChartDisplay data={chartData} onReset={reset} />

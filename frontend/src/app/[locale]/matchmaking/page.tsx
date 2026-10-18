@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Link } from "@/i18n/routing";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Heart,
   Sparkles,
@@ -35,17 +36,10 @@ import {
   PersonBirthDetails,
   PoruthamItem,
 } from "@/lib/api";
+import { useAstrologyStore, MatchPersonData } from "@/store/useAstrologyStore";
+import { useAstroTranslation } from "@/lib/translations";
 
-interface PersonState {
-  name: string;
-  dob: string;
-  tob: string;
-  pob: string;
-  latitude?: number;
-  longitude?: number;
-}
-
-const SAMPLE_BOY: PersonState = {
+const SAMPLE_BOY: MatchPersonData = {
   name: "Arjun Raman",
   dob: "1995-05-14",
   tob: "07:30",
@@ -54,7 +48,7 @@ const SAMPLE_BOY: PersonState = {
   longitude: 80.2707,
 };
 
-const SAMPLE_GIRL: PersonState = {
+const SAMPLE_GIRL: MatchPersonData = {
   name: "Kavya Menon",
   dob: "1997-08-22",
   tob: "10:15",
@@ -64,28 +58,43 @@ const SAMPLE_GIRL: PersonState = {
 };
 
 export default function MatchmakingPage() {
-  const [boy, setBoy] = useState<PersonState>({
-    name: "",
-    dob: "",
-    tob: "07:30",
-    pob: "Chennai",
-  });
+  const [mounted, setMounted] = useState(false);
+  const locale = useLocale();
 
-  const [girl, setGirl] = useState<PersonState>({
-    name: "",
-    dob: "",
-    tob: "10:15",
-    pob: "Kozhikode",
-  });
+  // Zustand persistent store bindings - prevents state loss on language switch
+  const boy = useAstrologyStore((state) => state.matchBoy);
+  const setBoy = useAstrologyStore((state) => state.setMatchBoy);
+  const girl = useAstrologyStore((state) => state.matchGirl);
+  const setGirl = useAstrologyStore((state) => state.setMatchGirl);
+  const matchResult = useAstrologyStore((state) => state.matchResult);
+  const setMatchResult = useAstrologyStore((state) => state.setMatchResult);
+  const isLoading = useAstrologyStore((state) => state.matchLoading);
+  const setIsLoading = useAstrologyStore((state) => state.setMatchLoading);
+  const errorMessage = useAstrologyStore((state) => state.matchError);
+  const setErrorMessage = useAstrologyStore((state) => state.setMatchError);
+  const poruthamFilter = useAstrologyStore((state) => state.poruthamFilter);
+  const setPoruthamFilter = useAstrologyStore((state) => state.setPoruthamFilter);
+  const resetMatchmaking = useAstrologyStore((state) => state.resetMatchmaking);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [matchResult, setMatchResult] = useState<MatchData | null>(null);
-  const [poruthamFilter, setPoruthamFilter] = useState<"all" | "match" | "no_match">("all");
+  // Deep Translations for Astrological Terms
+  const {
+    translatePlanet,
+    translateSign,
+    translateNakshatra,
+    translateGana,
+    translateRajju,
+    translateLord,
+  } = useAstroTranslation();
+
+  const tMatch = useTranslations("matchmaking_page");
+  const tNav = useTranslations("nav");
+  const tUI = useTranslations("astrology.ui");
+  const tForm = useTranslations("form_preview");
 
   useEffect(() => {
-    document.title = "Vedic Matchmaking (Dasa Porutham) | Jyotish Rasi";
-  }, []);
+    setMounted(true);
+    document.title = tMatch("page_title");
+  }, [tMatch]);
 
   const handleQuickSample = () => {
     setBoy(SAMPLE_BOY);
@@ -94,10 +103,7 @@ export default function MatchmakingPage() {
   };
 
   const handleReset = () => {
-    setBoy({ name: "", dob: "", tob: "07:30", pob: "Chennai" });
-    setGirl({ name: "", dob: "", tob: "10:15", pob: "Kozhikode" });
-    setMatchResult(null);
-    setErrorMessage(null);
+    resetMatchmaking();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -107,11 +113,11 @@ export default function MatchmakingPage() {
 
     // Validation
     if (!boy.dob) {
-      setErrorMessage("Please enter the Date of Birth for the Boy.");
+      setErrorMessage(tMatch("error_boy_dob"));
       return;
     }
     if (!girl.dob) {
-      setErrorMessage("Please enter the Date of Birth for the Girl.");
+      setErrorMessage(tMatch("error_girl_dob"));
       return;
     }
 
@@ -137,6 +143,7 @@ export default function MatchmakingPage() {
         },
       });
 
+      // Persist in Zustand so language switching doesn't lose the result
       setMatchResult(data);
 
       setTimeout(() => {
@@ -163,6 +170,33 @@ export default function MatchmakingPage() {
   const matchedCount = matchResult?.poruthams.filter((p) => p.status === "Match").length ?? 0;
   const isRajjuMatched = matchResult?.poruthams.find((p) => p.id === "rajju")?.status === "Match";
 
+  const boyPobPlaceholder =
+    locale === "ml"
+      ? "ഉദാ: ചെന്നൈ, മധുര, ദില്ലി"
+      : locale === "ta"
+      ? "எ.கா: சென்னை, மதுரை, புது தில்லி"
+      : locale === "hi"
+      ? "उदा: चेन्नई, मदुरै, नई दिल्ली"
+      : "e.g. Chennai, Madurai, or New Delhi";
+
+  const girlPobPlaceholder =
+    locale === "ml"
+      ? "ഉദാ: കോഴിക്കോട്, കൊച്ചി, ബംഗളൂരു"
+      : locale === "ta"
+      ? "எ.கா: கோழிக்கோடு, கொச்சி, பெங்களூரு"
+      : locale === "hi"
+      ? "उदा: कोझिकोड, कोच्चि, बेंगलुरु"
+      : "e.g. Kozhikode, Kochi, or Bengaluru";
+
+  // Prevent SSR hydration mismatch for persisted localStorage states
+  if (!mounted) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-celestial-gold animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="relative isolate px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-10 lg:py-14">
       {/* Page Header */}
@@ -170,17 +204,16 @@ export default function MatchmakingPage() {
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-pink-500/30 bg-pink-500/10 backdrop-blur-md mb-4 shadow-sm">
           <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400/40 animate-pulse" />
           <span className="text-xs uppercase tracking-widest text-pink-300 font-mono">
-            Vedic Compatibility Engine • ദശ പൊരുത്തം
+            {tMatch("badge")}
           </span>
         </div>
 
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white leading-tight">
-          Vedic Matchmaking &amp; Jathaka Porutham
+          {tMatch("headline")}
         </h1>
 
         <p className="mt-4 text-base sm:text-lg text-slate-300 font-light leading-relaxed">
-          Comprehensive South Indian 10-Porutham (Dasa Koota) compatibility analysis calculated using precise
-          planetary Moon longitudes, Nakshatra pada harmonic algorithms, and classical Vedic marital principles.
+          {tMatch("subheadline")}
         </p>
 
         {/* Quick Sample Button */}
@@ -191,16 +224,16 @@ export default function MatchmakingPage() {
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-cosmic-900/80 border border-slate-700/80 hover:border-celestial-gold text-slate-300 hover:text-celestial-gold text-xs font-medium transition-all cursor-pointer shadow-sm"
           >
             <Sparkles className="w-3.5 h-3.5 text-celestial-gold" />
-            <span>Load Sample Couple</span>
+            <span>{tMatch("load_sample")}</span>
           </button>
           {matchResult && (
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cosmic-900/80 border border-slate-700/80 hover:border-red-400 text-slate-400 hover:text-red-300 text-xs font-medium transition-all cursor-pointer shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cosmic-900/80 border border-slate-700/80 hover:border-red-400 text-slate-400 hover:text-red-300 text-xs font-medium transition-all cursor-pointer shadow-sm"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset All</span>
+              <span>{tMatch("reset")}</span>
             </button>
           )}
         </div>
@@ -211,7 +244,7 @@ export default function MatchmakingPage() {
         <div className="max-w-4xl mx-auto mb-8 p-4 rounded-xl bg-red-950/70 border border-red-800/80 text-red-200 text-sm flex items-start gap-3 animate-in fade-in duration-200 shadow-xl">
           <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h4 className="font-semibold text-red-300">Calculation Error</h4>
+            <h4 className="font-semibold text-red-300">{tMatch("calc_error_title")}</h4>
             <p className="mt-0.5 text-xs text-red-200/90 leading-relaxed">{errorMessage}</p>
           </div>
         </div>
@@ -224,7 +257,7 @@ export default function MatchmakingPage() {
           <div className="relative rounded-2xl bg-gradient-to-b from-cosmic-900/70 via-cosmic-950/90 to-cosmic-950/90 border border-indigo-500/30 backdrop-blur-xl p-6 sm:p-7 shadow-2xl flex flex-col justify-between">
             <div className="absolute -top-3 left-6 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-950 border border-indigo-500/50 text-indigo-300 text-xs font-semibold tracking-wider uppercase shadow-md">
               <Sun className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Boy&apos;s Details (വരന്റെ വിവരങ്ങൾ)</span>
+              <span>{tMatch("boy_badge")}</span>
             </div>
 
             <div className="space-y-4 pt-3">
@@ -234,13 +267,13 @@ export default function MatchmakingPage() {
                   htmlFor="boy-name"
                   className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                 >
-                  Full Name
+                  {tForm("name")}
                 </label>
                 <input
                   id="boy-name"
                   type="text"
                   value={boy.name}
-                  onChange={(e) => setBoy({ ...boy, name: e.target.value })}
+                  onChange={(e) => setBoy({ name: e.target.value })}
                   placeholder="e.g. Arjun Raman"
                   className="w-full px-4 py-2.5 rounded-lg bg-cosmic-950/90 border border-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none text-sm text-white placeholder-slate-500 transition-colors"
                 />
@@ -253,14 +286,14 @@ export default function MatchmakingPage() {
                     htmlFor="boy-dob"
                     className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                   >
-                    Date of Birth <span className="text-celestial-gold">*</span>
+                    {tForm("dob")} <span className="text-celestial-gold">*</span>
                   </label>
                   <input
                     id="boy-dob"
                     type="date"
                     required
                     value={boy.dob}
-                    onChange={(e) => setBoy({ ...boy, dob: e.target.value })}
+                    onChange={(e) => setBoy({ dob: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-lg bg-cosmic-950/90 border border-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none text-sm text-white transition-colors"
                   />
                 </div>
@@ -270,12 +303,12 @@ export default function MatchmakingPage() {
                     htmlFor="boy-tob"
                     className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                   >
-                    Time of Birth <span className="text-celestial-gold">*</span>
+                    {tForm("tob")} <span className="text-celestial-gold">*</span>
                   </label>
                   <TimeInput12Hour
                     id="boy-tob"
                     value={boy.tob}
-                    onChange={(tob) => setBoy({ ...boy, tob })}
+                    onChange={(tob) => setBoy({ tob })}
                   />
                 </div>
               </div>
@@ -286,30 +319,29 @@ export default function MatchmakingPage() {
                   htmlFor="boy-pob"
                   className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                 >
-                  Place of Birth
+                  {tForm("pob")}
                 </label>
                 <LocationAutocomplete
                   id="boy-pob"
                   value={boy.pob}
                   onChange={(pob, coords) =>
                     setBoy({
-                      ...boy,
                       pob,
                       latitude: coords?.lat,
                       longitude: coords?.lon,
                     })
                   }
-                  placeholder="e.g. Chennai, Madurai, or New Delhi"
+                  placeholder={boyPobPlaceholder}
                 />
                 <span className="block mt-1 text-[11px] text-slate-500">
-                  Birth city coordinates and time zone are auto-resolved.
+                  {tMatch("city_hint")}
                 </span>
               </div>
             </div>
 
             <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-indigo-300/80 font-mono">
-              <span>Groom Astrological Chart</span>
-              <span>Primary Moon Node</span>
+              <span>{tMatch("boy_chart_label")}</span>
+              <span>{tMatch("primary_node")}</span>
             </div>
           </div>
 
@@ -317,7 +349,7 @@ export default function MatchmakingPage() {
           <div className="relative rounded-2xl bg-gradient-to-b from-cosmic-900/70 via-cosmic-950/90 to-cosmic-950/90 border border-pink-500/30 backdrop-blur-xl p-6 sm:p-7 shadow-2xl flex flex-col justify-between">
             <div className="absolute -top-3 left-6 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-950 border border-pink-500/50 text-pink-300 text-xs font-semibold tracking-wider uppercase shadow-md">
               <Moon className="w-3.5 h-3.5 text-pink-400" />
-              <span>Girl&apos;s Details (വധുവിന്റെ വിവരങ്ങൾ)</span>
+              <span>{tMatch("girl_badge")}</span>
             </div>
 
             <div className="space-y-4 pt-3">
@@ -327,13 +359,13 @@ export default function MatchmakingPage() {
                   htmlFor="girl-name"
                   className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                 >
-                  Full Name
+                  {tForm("name")}
                 </label>
                 <input
                   id="girl-name"
                   type="text"
                   value={girl.name}
-                  onChange={(e) => setGirl({ ...girl, name: e.target.value })}
+                  onChange={(e) => setGirl({ name: e.target.value })}
                   placeholder="e.g. Kavya Menon"
                   className="w-full px-4 py-2.5 rounded-lg bg-cosmic-950/90 border border-slate-700 focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none text-sm text-white placeholder-slate-500 transition-colors"
                 />
@@ -346,14 +378,14 @@ export default function MatchmakingPage() {
                     htmlFor="girl-dob"
                     className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                   >
-                    Date of Birth <span className="text-celestial-gold">*</span>
+                    {tForm("dob")} <span className="text-celestial-gold">*</span>
                   </label>
                   <input
                     id="girl-dob"
                     type="date"
                     required
                     value={girl.dob}
-                    onChange={(e) => setGirl({ ...girl, dob: e.target.value })}
+                    onChange={(e) => setGirl({ dob: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-lg bg-cosmic-950/90 border border-slate-700 focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none text-sm text-white transition-colors"
                   />
                 </div>
@@ -363,12 +395,12 @@ export default function MatchmakingPage() {
                     htmlFor="girl-tob"
                     className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                   >
-                    Time of Birth <span className="text-celestial-gold">*</span>
+                    {tForm("tob")} <span className="text-celestial-gold">*</span>
                   </label>
                   <TimeInput12Hour
                     id="girl-tob"
                     value={girl.tob}
-                    onChange={(tob) => setGirl({ ...girl, tob })}
+                    onChange={(tob) => setGirl({ tob })}
                   />
                 </div>
               </div>
@@ -379,30 +411,29 @@ export default function MatchmakingPage() {
                   htmlFor="girl-pob"
                   className="block text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5"
                 >
-                  Place of Birth
+                  {tForm("pob")}
                 </label>
                 <LocationAutocomplete
                   id="girl-pob"
                   value={girl.pob}
                   onChange={(pob, coords) =>
                     setGirl({
-                      ...girl,
                       pob,
                       latitude: coords?.lat,
                       longitude: coords?.lon,
                     })
                   }
-                  placeholder="e.g. Kozhikode, Kochi, or Bengaluru"
+                  placeholder={girlPobPlaceholder}
                 />
                 <span className="block mt-1 text-[11px] text-slate-500">
-                  Birth city coordinates and time zone are auto-resolved.
+                  {tMatch("city_hint")}
                 </span>
               </div>
             </div>
 
             <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-pink-300/80 font-mono">
-              <span>Bride Astrological Chart</span>
-              <span>Reflected Moon Node</span>
+              <span>{tMatch("girl_chart_label")}</span>
+              <span>{tMatch("reflected_node")}</span>
             </div>
           </div>
         </div>
@@ -418,12 +449,12 @@ export default function MatchmakingPage() {
             {isLoading ? (
               <>
                 <Loader2 className="w-5 h-5 text-celestial-gold animate-spin" />
-                <span>Evaluating Dasa Poruthams &amp; Ephemeris...</span>
+                <span>{tMatch("evaluating")}</span>
               </>
             ) : (
               <>
                 <Heart className="w-5 h-5 text-pink-200 fill-pink-200/50" />
-                <span>Calculate Match (പൊരുത്തം കണക്കാക്കുക)</span>
+                <span>{tMatch("calculate_btn")}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -446,10 +477,10 @@ export default function MatchmakingPage() {
                 <div>
                   <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-celestial-gold">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Jathaka Porutham Verdict</span>
+                    <span>{tMatch("verdict_badge")}</span>
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-serif font-bold text-white mt-1">
-                    Compatibility Scorecard
+                    {tMatch("scorecard_title")}
                   </h2>
                 </div>
 
@@ -460,7 +491,7 @@ export default function MatchmakingPage() {
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cosmic-950 border border-slate-700 hover:border-slate-500 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Print Report</span>
+                    <span>{tUI("download_pdf")}</span>
                   </button>
                   <button
                     type="button"
@@ -468,7 +499,7 @@ export default function MatchmakingPage() {
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cosmic-950 border border-slate-700 hover:border-celestial-gold text-slate-300 hover:text-celestial-gold text-xs font-medium transition-colors cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>New Match</span>
+                    <span>{tUI("generate_another")}</span>
                   </button>
                 </div>
               </div>
@@ -515,7 +546,7 @@ export default function MatchmakingPage() {
                         <span className="text-xl text-slate-400 font-sans font-normal"> / 10</span>
                       </span>
                       <span className="text-xs font-mono uppercase tracking-wider text-celestial-gold font-semibold mt-0.5">
-                        {matchResult.percentage}% Compatible
+                        {matchResult.percentage}% {tMatch("compatible")}
                       </span>
                     </div>
                   </div>
@@ -524,7 +555,7 @@ export default function MatchmakingPage() {
                   <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span>
-                      <strong>{matchedCount}</strong> of <strong>10</strong> Dasa Poruthams Matched
+                      <strong>{matchedCount}</strong> / <strong>10</strong> {tMatch("matches_count")}
                     </span>
                   </div>
                 </div>
@@ -557,7 +588,7 @@ export default function MatchmakingPage() {
                       )}
                       <div>
                         <span className="text-[11px] font-mono uppercase tracking-widest opacity-80">
-                          Vedic Verdict
+                          {tMatch("verdict_badge")}
                         </span>
                         <h3 className="text-xl font-bold tracking-tight">
                           {matchResult.verdict_label}
@@ -585,7 +616,7 @@ export default function MatchmakingPage() {
                     <div className="text-xs">
                       <div className="flex items-center gap-2">
                         <strong className="text-white text-sm">
-                          Rajju Porutham Status (രജ്ജു പൊരുത്തം):
+                          {tMatch("rajju_label")}
                         </strong>
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -594,25 +625,23 @@ export default function MatchmakingPage() {
                               : "bg-red-500/20 text-red-300 border border-red-500/40"
                           }`}
                         >
-                          {isRajjuMatched ? "Satisfied (Match)" : "Rajju Dosha (No Match)"}
+                          {isRajjuMatched ? tMatch("rajju_satisfied") : tMatch("rajju_dosha")}
                         </span>
                       </div>
                       <p className="mt-1 text-slate-300 leading-relaxed">
-                        {isRajjuMatched
-                          ? "Rajju agreement is fully satisfied. Classical South Indian astrology considers this the cardinal requirement for marital longevity and the bride's lasting welfare (Soumangalyam)."
-                          : "Rajju Dosha detected. In traditional Jyotish, Rajju represents the spinal chord of matchmaking. Classical texts advise caution when Rajju fails, irrespective of other scores."}
+                        {isRajjuMatched ? tMatch("rajju_desc_satisfied") : tMatch("rajju_desc_dosha")}
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Side-by-side Moon & Nakshatra Profile Snapshot */}
+              {/* Side-by-side Moon & Nakshatra Profile Snapshot with Deep Translations */}
               <div className="mt-8 pt-8 border-t border-slate-800">
                 <div className="flex items-center gap-2 mb-4">
                   <Compass className="w-4 h-4 text-celestial-gold" />
                   <h4 className="text-sm font-serif font-semibold text-slate-200 uppercase tracking-wider">
-                    Planetary Moon &amp; Star Coordinates Comparison
+                    {tMatch("comparison_title")}
                   </h4>
                 </div>
 
@@ -623,42 +652,50 @@ export default function MatchmakingPage() {
                       <div className="flex items-center gap-2">
                         <Sun className="w-4 h-4 text-indigo-400" />
                         <span className="font-semibold text-white text-sm">
-                          {matchResult.boy.name} (Groom)
+                          {boy.name || matchResult.boy.name} ({tMatch("groom")})
                         </span>
                       </div>
                       <span className="text-[11px] font-mono text-indigo-300 uppercase">
-                        {matchResult.boy.rasi_english}
+                        {translateSign(matchResult.boy.rasi_english || matchResult.boy.rasi)}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
                       <div>
-                        <span className="text-slate-400">Janma Rasi:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.boy.rasi}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400">Rasi Lord:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.boy.lord}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400">Nakshatra:</span>{" "}
-                        <strong className="text-celestial-gold">
-                          {matchResult.boy.nakshatra} (Pada {matchResult.boy.pada})
+                        <span className="text-slate-400">{tUI("moon_card")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateSign(matchResult.boy.rasi_english || matchResult.boy.rasi)}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Gana:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.boy.gana}</strong>
+                        <span className="text-slate-400">{tMatch("rasi_lord")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateLord(matchResult.boy.lord)}
+                        </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Yoni:</span>{" "}
+                        <span className="text-slate-400">{tUI("nakshatra_card")}:</span>{" "}
+                        <strong className="text-celestial-gold">
+                          {translateNakshatra(matchResult.boy.nakshatra)} ({tUI("pada")} {matchResult.boy.pada})
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">{tMatch("gana")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateGana(matchResult.boy.gana)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">{tMatch("yoni")}:</span>{" "}
                         <strong className="text-slate-100">
                           {matchResult.boy.yoni_animal} ({matchResult.boy.yoni_gender})
                         </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Rajju:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.boy.rajju}</strong>
+                        <span className="text-slate-400">{tMatch("rajju")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateRajju(matchResult.boy.rajju)}
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -669,42 +706,50 @@ export default function MatchmakingPage() {
                       <div className="flex items-center gap-2">
                         <Moon className="w-4 h-4 text-pink-400" />
                         <span className="font-semibold text-white text-sm">
-                          {matchResult.girl.name} (Bride)
+                          {girl.name || matchResult.girl.name} ({tMatch("bride")})
                         </span>
                       </div>
                       <span className="text-[11px] font-mono text-pink-300 uppercase">
-                        {matchResult.girl.rasi_english}
+                        {translateSign(matchResult.girl.rasi_english || matchResult.girl.rasi)}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
                       <div>
-                        <span className="text-slate-400">Janma Rasi:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.girl.rasi}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400">Rasi Lord:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.girl.lord}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400">Nakshatra:</span>{" "}
-                        <strong className="text-celestial-gold">
-                          {matchResult.girl.nakshatra} (Pada {matchResult.girl.pada})
+                        <span className="text-slate-400">{tUI("moon_card")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateSign(matchResult.girl.rasi_english || matchResult.girl.rasi)}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Gana:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.girl.gana}</strong>
+                        <span className="text-slate-400">{tMatch("rasi_lord")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateLord(matchResult.girl.lord)}
+                        </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Yoni:</span>{" "}
+                        <span className="text-slate-400">{tUI("nakshatra_card")}:</span>{" "}
+                        <strong className="text-celestial-gold">
+                          {translateNakshatra(matchResult.girl.nakshatra)} ({tUI("pada")} {matchResult.girl.pada})
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">{tMatch("gana")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateGana(matchResult.girl.gana)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">{tMatch("yoni")}:</span>{" "}
                         <strong className="text-slate-100">
                           {matchResult.girl.yoni_animal} ({matchResult.girl.yoni_gender})
                         </strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Rajju:</span>{" "}
-                        <strong className="text-slate-100">{matchResult.girl.rajju}</strong>
+                        <span className="text-slate-400">{tMatch("rajju")}:</span>{" "}
+                        <strong className="text-slate-100">
+                          {translateRajju(matchResult.girl.rajju)}
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -718,10 +763,10 @@ export default function MatchmakingPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-2xl font-serif font-bold text-white">
-                  Detailed 10 Dasa Poruthams Breakdown
+                  {tMatch("breakdown_title")}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Classical Kutas evaluating health, psychological harmony, longevity, and marital bliss.
+                  {tMatch("breakdown_subtitle")}
                 </p>
               </div>
 
@@ -736,7 +781,7 @@ export default function MatchmakingPage() {
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  All (10)
+                  {tMatch("filter_all")}
                 </button>
                 <button
                   type="button"
@@ -747,7 +792,7 @@ export default function MatchmakingPage() {
                       : "text-slate-400 hover:text-emerald-300"
                   }`}
                 >
-                  Matched ({matchedCount})
+                  {tMatch("filter_matched")} ({matchedCount})
                 </button>
                 <button
                   type="button"
@@ -758,14 +803,14 @@ export default function MatchmakingPage() {
                       : "text-slate-400 hover:text-rose-300"
                   }`}
                 >
-                  Unmatched ({10 - matchedCount})
+                  {tMatch("filter_unmatched")} ({10 - matchedCount})
                 </button>
               </div>
             </div>
 
             {/* Porutham Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredPoruthams?.map((p, idx) => {
+              {filteredPoruthams?.map((p) => {
                 const isMatched = p.status === "Match";
                 const isRajju = p.id === "rajju";
 
@@ -801,11 +846,11 @@ export default function MatchmakingPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="text-base font-bold text-white">
-                              {p.name} Porutham
+                              {p.name} {tMatch("porutham_suffix")}
                             </h4>
                             {isRajju && (
                               <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-celestial-gold border border-amber-500/40">
-                                Cardinal
+                                {tMatch("cardinal")}
                               </span>
                             )}
                           </div>
@@ -822,10 +867,10 @@ export default function MatchmakingPage() {
                               : "bg-slate-800 text-slate-400 border border-slate-700"
                           }`}
                         >
-                          {isMatched ? "Match" : "No Match"}
+                          {isMatched ? tMatch("match_status") : tMatch("no_match_status")}
                         </span>
                         <span className="text-[11px] font-mono text-slate-400 mt-1">
-                          Score: {p.score.toFixed(1)} / {p.max_score.toFixed(1)}
+                          {tMatch("score_label")}: {p.score.toFixed(1)} / {p.max_score.toFixed(1)}
                         </span>
                       </div>
                     </div>
@@ -855,11 +900,10 @@ export default function MatchmakingPage() {
           {/* Bottom Action Footer */}
           <div className="p-8 rounded-2xl bg-cosmic-900/40 border border-slate-800 text-center space-y-4">
             <h4 className="text-lg font-serif font-bold text-white">
-              Need to generate the complete Rasi Kundali for either partner?
+              {tMatch("footer_title")}
             </h4>
             <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
-              Inspect full D1 Rasi &amp; D9 Navamsa divisional charts, exact Lahiri Ayanamsa planetary degrees,
-              and Lagna house placements.
+              {tMatch("footer_desc")}
             </p>
             <div className="pt-2">
               <Link
@@ -867,7 +911,7 @@ export default function MatchmakingPage() {
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cosmic-950 border border-celestial-gold/40 text-celestial-gold hover:border-celestial-gold hover:bg-slate-900 transition-colors text-xs font-semibold uppercase tracking-wider shadow-md"
               >
                 <Compass className="w-4 h-4 text-celestial-gold" />
-                <span>Open Kundali Generator</span>
+                <span>{tMatch("open_kundali_btn")}</span>
               </Link>
             </div>
           </div>

@@ -1,8 +1,17 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { ChartData } from "@/lib/api";
+import { ChartData, MatchData } from "@/lib/api";
 
 export interface BirthFormData {
+  name: string;
+  dob: string;
+  tob: string;
+  pob: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface MatchPersonData {
   name: string;
   dob: string;
   tob: string;
@@ -21,6 +30,7 @@ export interface RecentProfile {
 }
 
 interface AstrologyStoreState {
+  // --- Kundali (Rasi & Navamsa) State ---
   formData: BirthFormData;
   recentProfiles: RecentProfile[];
   chartData: ChartData | null;
@@ -28,7 +38,15 @@ interface AstrologyStoreState {
   errorMessage: string | null;
   chartType: "D1" | "D9";
 
-  // Actions
+  // --- Matchmaking (Jathaka Porutham) State ---
+  matchBoy: MatchPersonData;
+  matchGirl: MatchPersonData;
+  matchResult: MatchData | null;
+  matchLoading: boolean;
+  matchError: string | null;
+  poruthamFilter: "all" | "match" | "no_match";
+
+  // --- Kundali Actions ---
   setFormData: (data: Partial<BirthFormData>) => void;
   addRecentProfile: (profile: Omit<RecentProfile, "id" | "timestamp">) => void;
   removeRecentProfile: (id: string) => void;
@@ -39,15 +57,25 @@ interface AstrologyStoreState {
   setErrorMessage: (msg: string | null) => void;
   setChartType: (type: "D1" | "D9") => void;
   reset: () => void;
+
+  // --- Matchmaking Actions ---
+  setMatchBoy: (data: Partial<MatchPersonData>) => void;
+  setMatchGirl: (data: Partial<MatchPersonData>) => void;
+  setMatchResult: (data: MatchData | null) => void;
+  setMatchLoading: (loading: boolean) => void;
+  setMatchError: (msg: string | null) => void;
+  setPoruthamFilter: (filter: "all" | "match" | "no_match") => void;
+  resetMatchmaking: () => void;
 }
 
 export const useAstrologyStore = create<AstrologyStoreState>()(
   persist(
     (set) => ({
+      // Kundali Defaults
       formData: {
         name: "",
         dob: "",
-        tob: "",
+        tob: "06:30",
         pob: "",
       },
       recentProfiles: [],
@@ -56,6 +84,25 @@ export const useAstrologyStore = create<AstrologyStoreState>()(
       errorMessage: null,
       chartType: "D1",
 
+      // Matchmaking Defaults
+      matchBoy: {
+        name: "",
+        dob: "",
+        tob: "07:30",
+        pob: "Chennai",
+      },
+      matchGirl: {
+        name: "",
+        dob: "",
+        tob: "10:15",
+        pob: "Kozhikode",
+      },
+      matchResult: null,
+      matchLoading: false,
+      matchError: null,
+      poruthamFilter: "all",
+
+      // --- Kundali Reducers ---
       setFormData: (data) =>
         set((state) => ({
           formData: { ...state.formData, ...data },
@@ -63,7 +110,6 @@ export const useAstrologyStore = create<AstrologyStoreState>()(
 
       addRecentProfile: (profile) =>
         set((state) => {
-          // Prevent duplicates by checking name and dob
           const filtered = state.recentProfiles.filter(
             (p) =>
               !(
@@ -79,7 +125,6 @@ export const useAstrologyStore = create<AstrologyStoreState>()(
             timestamp: Date.now(),
           };
 
-          // Keep up to 8 most recent profiles
           return {
             recentProfiles: [newProfile, ...filtered].slice(0, 8),
           };
@@ -121,6 +166,38 @@ export const useAstrologyStore = create<AstrologyStoreState>()(
           chartData: null,
           errorMessage: null,
           chartType: "D1",
+        }),
+
+      // --- Matchmaking Reducers ---
+      setMatchBoy: (data) =>
+        set((state) => ({
+          matchBoy: { ...state.matchBoy, ...data },
+        })),
+
+      setMatchGirl: (data) =>
+        set((state) => ({
+          matchGirl: { ...state.matchGirl, ...data },
+        })),
+
+      setMatchResult: (data) =>
+        set({ matchResult: data, matchError: null }),
+
+      setMatchLoading: (loading) =>
+        set({ matchLoading: loading }),
+
+      setMatchError: (msg) =>
+        set({ matchError: msg }),
+
+      setPoruthamFilter: (filter) =>
+        set({ poruthamFilter: filter }),
+
+      resetMatchmaking: () =>
+        set({
+          matchBoy: { name: "", dob: "", tob: "07:30", pob: "Chennai" },
+          matchGirl: { name: "", dob: "", tob: "10:15", pob: "Kozhikode" },
+          matchResult: null,
+          matchError: null,
+          poruthamFilter: "all",
         }),
     }),
     {

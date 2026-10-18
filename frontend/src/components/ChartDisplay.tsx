@@ -5,6 +5,7 @@ import { useReactToPrint } from "react-to-print";
 import { useTranslations } from "next-intl";
 import { useAstrologyStore } from "@/store/useAstrologyStore";
 import { ChartData, PlanetData } from "@/lib/api";
+import { useAstroTranslation } from "@/lib/translations";
 import {
   Compass,
   Sparkles,
@@ -20,8 +21,8 @@ import {
 } from "lucide-react";
 
 interface ChartDisplayProps {
-  data: ChartData;
-  onReset: () => void;
+  data?: ChartData | null;
+  onReset?: () => void;
 }
 
 interface SignBoxDefinition {
@@ -76,17 +77,20 @@ function formatDMS(degree: number): string {
   return `${d}° ${m.toString().padStart(2, "0")}'`;
 }
 
-export default function ChartDisplay({ data, onReset }: ChartDisplayProps) {
-  // Deep Translations from next-intl dictionaries
-  const tPlanets = useTranslations("astrology.planets");
-  const tSigns = useTranslations("astrology.signs");
-  const tNakshatras = useTranslations("astrology.nakshatras");
-  const tElements = useTranslations("astrology.elements");
-  const tUI = useTranslations("astrology.ui");
-
-  // Read active chart type (D1 vs D9) from global Zustand store
+export default function ChartDisplay({ data: propsData, onReset: propsOnReset }: ChartDisplayProps) {
+  // Read from global Zustand store with props fallback
+  const storeChartData = useAstrologyStore((state) => state.chartData);
+  const storeReset = useAstrologyStore((state) => state.reset);
   const chartType = useAstrologyStore((state) => state.chartType);
   const setChartType = useAstrologyStore((state) => state.setChartType);
+
+  const data = propsData || storeChartData;
+  const onReset = propsOnReset || storeReset;
+
+  // Deep Translations from centralized Astro hook and next-intl
+  const { translatePlanet, translateSign, translateNakshatra } = useAstroTranslation();
+  const tElements = useTranslations("astrology.elements");
+  const tUI = useTranslations("astrology.ui");
 
   // Printable Report Container Reference
   const printableRef = useRef<HTMLDivElement>(null);
@@ -98,7 +102,7 @@ export default function ChartDisplay({ data, onReset }: ChartDisplayProps) {
    */
   const handlePrint = useReactToPrint({
     contentRef: printableRef,
-    documentTitle: `${(data.seeker || "Seeker").replace(/\s+/g, "_")}_Vedic_Kundali_Report`,
+    documentTitle: `${(data?.seeker || "Seeker").replace(/\s+/g, "_")}_Vedic_Kundali_Report`,
     pageStyle: `
       @page {
         size: A4 portrait;
@@ -122,34 +126,6 @@ export default function ChartDisplay({ data, onReset }: ChartDisplayProps) {
     `,
   });
 
-  // Helper Translation Lookups with Fallbacks
-  const translatePlanet = (name: string): string => {
-    const key = name.toLowerCase().replace(/\s+/g, "_");
-    try {
-      return tPlanets(key as any);
-    } catch {
-      return name;
-    }
-  };
-
-  const translateSign = (sign: string): string => {
-    const key = sign.toLowerCase().replace(/\s+/g, "_");
-    try {
-      return tSigns(key as any);
-    } catch {
-      return sign;
-    }
-  };
-
-  const translateNakshatra = (nak: string): string => {
-    const key = nak.toLowerCase().replace(/\s+/g, "_");
-    try {
-      return tNakshatras(key as any);
-    } catch {
-      return nak;
-    }
-  };
-
   const translateElement = (elem: string): string => {
     const key = elem.toLowerCase();
     try {
@@ -158,6 +134,11 @@ export default function ChartDisplay({ data, onReset }: ChartDisplayProps) {
       return elem;
     }
   };
+
+  // If no chart data in props or Zustand store, safely return null
+  if (!data) {
+    return null;
+  }
 
   // D1 Lagna Sign Index
   const d1LagnaSignObj = SOUTH_INDIAN_SIGNS.find(
